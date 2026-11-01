@@ -1,35 +1,25 @@
 import random
-import os
 from typing import Optional
 
+import spaces
 import gradio as gr
+import torch
 from PIL import Image
+from diffusers import QwenImageEditPlusPipeline
 
 BASE_MODEL = "Qwen/Qwen-Image-Edit-2511"
 LORA_MODEL = "ScottzillaSystems/qwen-image-edit-plus-nsfw-lora"
 
 pipe = None
-torch = None
-QwenImageEditPlusPipeline = None
-HAS_CUDA = False
-if not os.environ.get("RENDER"):
-    import torch as _torch
-    from diffusers import QwenImageEditPlusPipeline as _QwenImageEditPlusPipeline
-    torch = _torch
-    QwenImageEditPlusPipeline = _QwenImageEditPlusPipeline
-    HAS_CUDA = torch.cuda.is_available()
-if HAS_CUDA:
-    print(f"Loading {BASE_MODEL} with LoRA {LORA_MODEL} …")
-    pipe = QwenImageEditPlusPipeline.from_pretrained(
-        BASE_MODEL,
-        torch_dtype=torch.bfloat16,
-    )
-    pipe.load_lora_weights(LORA_MODEL)
-    pipe.to("cuda")
-    pipe.set_progress_bar_config(disable=True)
-    print("Pipeline ready.")
-else:
-    print("No CUDA GPU detected. Starting UI in hosting-safe mode.")
+print(f"Loading {BASE_MODEL} with LoRA {LORA_MODEL} …")
+pipe = QwenImageEditPlusPipeline.from_pretrained(
+    BASE_MODEL,
+    torch_dtype=torch.bfloat16,
+)
+pipe.load_lora_weights(LORA_MODEL)
+pipe.to("cuda")
+pipe.set_progress_bar_config(disable=True)
+print("Pipeline ready.")
 
 
 def _resize_for_model(image: Image.Image, max_side: int = 1536) -> Image.Image:
@@ -40,6 +30,7 @@ def _resize_for_model(image: Image.Image, max_side: int = 1536) -> Image.Image:
     return image
 
 
+@spaces.GPU(duration=180)
 def generate(
     image: Image.Image,
     prompt: str,
@@ -53,12 +44,6 @@ def generate(
         raise gr.Error("Upload an input image first.")
     if not prompt or not prompt.strip():
         raise gr.Error("Enter an editing prompt.")
-    if pipe is None:
-        raise gr.Error(
-            "This Render instance has no CUDA GPU. The interface is online, "
-            "but image generation requires a GPU deployment."
-        )
-
     image = _resize_for_model(image)
     actual_seed = random.randint(0, 2**31 - 1) if seed < 0 else int(seed)
     generator = torch.manual_seed(actual_seed)
@@ -134,8 +119,4 @@ with gr.Blocks(title="Qwen Image Edit Plus — NSFW LoRA", css=custom_css, theme
     gr.Markdown("Model weights and licenses: [Qwen Image Edit](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) · [NSFW LoRA](https://huggingface.co/ScottzillaSystems/qwen-image-edit-plus-nsfw-lora)")
 
 
-demo.launch(
-    server_name="0.0.0.0",
-    server_port=int(os.environ.get("PORT", "7860")),
-    mcp_server=True,
-)
+demo.launch()

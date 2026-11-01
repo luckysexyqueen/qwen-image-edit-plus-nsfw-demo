@@ -3,15 +3,21 @@ import os
 from typing import Optional
 
 import gradio as gr
-import torch
 from PIL import Image
-from diffusers import QwenImageEditPlusPipeline
 
 BASE_MODEL = "Qwen/Qwen-Image-Edit-2511"
 LORA_MODEL = "ScottzillaSystems/qwen-image-edit-plus-nsfw-lora"
 
 pipe = None
-HAS_CUDA = torch.cuda.is_available()
+torch = None
+QwenImageEditPlusPipeline = None
+HAS_CUDA = False
+if not os.environ.get("RENDER"):
+    import torch as _torch
+    from diffusers import QwenImageEditPlusPipeline as _QwenImageEditPlusPipeline
+    torch = _torch
+    QwenImageEditPlusPipeline = _QwenImageEditPlusPipeline
+    HAS_CUDA = torch.cuda.is_available()
 if HAS_CUDA:
     print(f"Loading {BASE_MODEL} with LoRA {LORA_MODEL} …")
     pipe = QwenImageEditPlusPipeline.from_pretrained(
